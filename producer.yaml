@@ -1,0 +1,69 @@
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: driver-job
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+      - name: driver-job
+        image: stevendongatibm/test:6
+        env:
+        - name: BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: brokers
+        - name: USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: username
+        - name: PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: password
+        - name: TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: topic
+        - name: CONSUMERGROUP
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: consumergroup
+        - name: RATEDEVIATION
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: ratedeviation
+        - name: RATE
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: rate
+        - name: SENDDURATIONDEVIATION
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: senddurationdeviation
+        - name: SENDDURATION
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: sendduration
+        - name: RESTDURATIONDEVIATION
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: restdurationdeviation
+        - name: RESTDURATION
+          valueFrom:
+            configMapKeyRef:
+              name: driver-job
+              key: restduration
+      restartPolicy: Never
