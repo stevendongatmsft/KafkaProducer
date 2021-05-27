@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,7 +18,7 @@ var totalMsg int
 var totalBurst int
 var totalSendDur int
 var totalRestDur int
-var topic = getenv("TOPIC", "lessthan100partitions")
+var topic = getenv("TOPIC", "p700")
 var brokers = getenv("BROKERS", "kafka-1.mh-lbnyvywmvwwvpcmssqgl-4c201a12d7add7c99d2b22e361c6f175-0000.us-south.containers.appdomain.cloud:9093")
 var username = getenv("USERNAME", "token")
 var password = getenv("PASSWORD", "")
@@ -27,33 +28,107 @@ var rate, _ = strconv.ParseInt(getenv("RATE", "500"), 10, 64)
 var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "1"), 10, 64)
 var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "10"), 10, 64)
 var restdurationdeviation, _ = strconv.ParseInt(getenv("RESTDURATIONDEVIATION", "0"), 10, 64)
-var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "1"), 10, 64)
+var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "0"), 10, 64)
 var msg = "sample message 1"
+var stats struct {
+	i  int
+	j  int
+	Mu sync.Mutex
+}
 
-func main() {
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		fmt.Println("Keyboard interrupted. Exit Program")
-		fmt.Println("total produced messages: ", totalMsg)
-		fmt.Println("average burst rate is: ", totalMsg/totalBurst)
-		fmt.Println("average rest duration is: ", totalRestDur/totalBurst)
-		fmt.Println("average send duration is: ", totalSendDur/totalBurst)
-		os.Exit(1)
-	}()
-
-	go loopPrint()
-
+func async() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGKILL)
 	config, err := kafkaConfig()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	producer, err := sarama.NewSyncProducer([]string{brokers}, config)
+	// enabling the read from the Success() channel
+	config.Producer.Return.Successes = true
+
+	producer, err := sarama.NewAsyncProducer([]string{brokers}, config)
 	if err != nil {
-		fmt.Println(err.Error())
+		panic("Error creating the sync producer")
 	}
-	produce(int(rate), int(ratedeviation), int(restduration), int(restdurationdeviation), int(sendduration), int(senddurationdeviation), &producer)
+	i := 0
+
+	defer func() {
+		err := producer.Close()
+		if err != nil {
+			fmt.Println("Error closing producer: ", err)
+			return
+		}
+		fmt.Println("Producer closed")
+	}()
+
+producerLoop:
+	for {
+
+		value := fmt.Sprintf("Message-%d", i)
+		message := sarama.ProducerMessage{Topic: topic, Value: sarama.StringEncoder(value)}
+
+		select {
+		case producer.Input() <- &message:
+			stats.Mu.Lock()
+			stats.i++
+			ii := stats.i
+			stats.Mu.Unlock()
+			if int(ii) == 500000 {
+				time.Sleep(5 * time.Second)
+				stats.Mu.Lock()
+				fmt.Println("total messages produced is probably: ", stats.i)
+				fmt.Println("total errored is: ", stats.j)
+				stats.Mu.Unlock()
+				break producerLoop
+			}
+		case err := <-producer.Errors():
+			stats.Mu.Lock()
+			stats.j++
+			stats.Mu.Unlock()
+			fmt.Println("Failed to produce message", err)
+		case success := <-producer.Successes():
+			fmt.Printf("Sent message value='%s' at partition = %d, offset = %d\n", success.Value, success.Partition, success.Offset)
+		case sig := <-signals:
+			fmt.Println("Got signal: ", sig)
+			stats.Mu.Lock()
+			fmt.Println("total messages produced is probably: ", stats.i)
+			fmt.Println("total errored is: ", stats.j)
+			stats.Mu.Unlock()
+			break producerLoop
+		default:
+			time.Sleep(time.Duration(0) * time.Millisecond)
+		}
+	}
+}
+
+func main() {
+	useAsync := true
+	if useAsync {
+		async()
+	} else {
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			time.Sleep(3 * time.Second)
+			fmt.Println("Keyboard interrupted. Exit Program")
+			fmt.Println("total produced messages: ", totalMsg)
+			fmt.Println("average burst rate is: ", totalMsg/totalBurst)
+			fmt.Println("average rest duration is: ", totalRestDur/totalBurst)
+			fmt.Println("average send duration is: ", totalSendDur/totalBurst)
+			os.Exit(1)
+		}()
+		go loopPrint()
+		config, err := kafkaConfig()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		producer, err := sarama.NewSyncProducer([]string{brokers}, config)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		produce(int(rate), int(ratedeviation), int(restduration), int(restdurationdeviation), int(sendduration), int(senddurationdeviation), &producer)
+	}
 }
 
 func getenv(key, fallback string) string {
@@ -117,13 +192,14 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 			Value: sarama.StringEncoder(msg),
 		}
 		_, _, err := (*p).SendMessage(message)
+		totalMsg += 1
 		if err != nil {
 			fmt.Println(err.Error())
 			break
 		}
 		//fmt.Printf("Produced message to partition %d offset %d\n", partition, offset)
 		count += 1
-		totalMsg += 1
+
 	}
 }
 
@@ -149,7 +225,7 @@ func loopPrint() {
 func kafkaConfig() (kafkaConfig *sarama.Config, err error) {
 	apiKey := password
 	user := username
-	kafkaVersion := "2.3.0"
+	kafkaVersion := "2.6.0"
 
 	kafkaConfig = sarama.NewConfig()
 
