@@ -18,10 +18,10 @@ var totalMsg int
 var totalBurst int
 var totalSendDur int
 var totalRestDur int
-var topic = getenv("TOPIC", "p700")
+var topic = getenv("TOPIC", "est2")
 var brokers = getenv("BROKERS", "kafka-1.mh-lbnyvywmvwwvpcmssqgl-4c201a12d7add7c99d2b22e361c6f175-0000.us-south.containers.appdomain.cloud:9093")
 var username = getenv("USERNAME", "token")
-var password = getenv("PASSWORD", "")
+var password = getenv("PASSWORD", "HNd6S41L-NQyn9rZP7DwgA0AmMoTzlWpIOBA2BjWvWzM")
 var consumergroup = getenv("CONSUMERGROUP", "code-engin-test1")
 var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "20"), 10, 64)
 var rate, _ = strconv.ParseInt(getenv("RATE", "500"), 10, 64)
@@ -73,7 +73,8 @@ producerLoop:
 			stats.i++
 			ii := stats.i
 			stats.Mu.Unlock()
-			if int(ii) == 500000 {
+			tot, _ := strconv.Atoi(os.Getenv("EVENTCT"))
+			if int(ii) == tot {
 				time.Sleep(5 * time.Second)
 				stats.Mu.Lock()
 				fmt.Println("total messages produced is probably: ", stats.i)
@@ -259,7 +260,7 @@ func inClusterKafkaConfig() (kafkaConfig *sarama.Config, err error) {
 
 	kafkaConfig.ClientID = "knative-e2e"
 
-	kafkaConfig.Producer.Partitioner = sarama.NewRandomPartitioner
+	kafkaConfig.Producer.Partitioner = sarama.NewManualPartitioner
 	kafkaConfig.Producer.RequiredAcks = sarama.WaitForAll
 	kafkaConfig.Producer.Return.Successes = true
 
