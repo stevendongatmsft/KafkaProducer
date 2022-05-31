@@ -13,3 +13,10 @@ TOPIC is the topic you want events to be sent to
 EVENTCT represents the event count you want to send 
 BROKERS is the broker addresses 
 PASSWORD is the apikey or password you use to access your Kafka instance 
+
+
+Then run 
+```
+./send.sh send
+
+```
