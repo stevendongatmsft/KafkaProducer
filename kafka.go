@@ -8,25 +8,26 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/Shopify/sarama"
 )
 
-var totalMsg int
+var totalMsg int64
 var totalBurst int
 var totalSendDur int
 var totalRestDur int
-var topic = getenv("TOPIC", "est2")
+var topic = getenv("TOPIC", "pa20")
 var brokers = getenv("BROKERS", "kafka-1.mh-lbnyvywmvwwvpcmssqgl-4c201a12d7add7c99d2b22e361c6f175-0000.us-south.containers.appdomain.cloud:9093")
 var username = getenv("USERNAME", "token")
-var password = getenv("PASSWORD", "HNd6S41L-NQyn9rZP7DwgA0AmMoTzlWpIOBA2BjWvWzM")
-var consumergroup = getenv("CONSUMERGROUP", "code-engin-test1")
-var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "20"), 10, 64)
-var rate, _ = strconv.ParseInt(getenv("RATE", "500"), 10, 64)
+var password = getenv("PASSWORD", "")
+var consumergroup = getenv("CONSUMERGROUP", "kafkasourcetestproducer")
+var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "2"), 10, 64)
+var rate, _ = strconv.ParseInt(getenv("RATE", "3000"), 10, 64)
 var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "1"), 10, 64)
-var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "10"), 10, 64)
+var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "30"), 10, 64)
 var restdurationdeviation, _ = strconv.ParseInt(getenv("RESTDURATIONDEVIATION", "0"), 10, 64)
 var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "0"), 10, 64)
 var msg = "sample message 1"
@@ -43,14 +44,12 @@ func async() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	// enabling the read from the Success() channel
-	config.Producer.Return.Successes = true
 
 	producer, err := sarama.NewAsyncProducer([]string{brokers}, config)
 	if err != nil {
 		panic("Error creating the sync producer")
 	}
-	i := 0
+	i := 11
 
 	defer func() {
 		err := producer.Close()
@@ -77,7 +76,7 @@ producerLoop:
 			if int(ii) == tot {
 				time.Sleep(5 * time.Second)
 				stats.Mu.Lock()
-				fmt.Println("total messages produced is probably: ", stats.i)
+				fmt.Println("total messages produced is: ", stats.i)
 				fmt.Println("total errored is: ", stats.j)
 				stats.Mu.Unlock()
 				break producerLoop
@@ -114,7 +113,7 @@ func main() {
 			time.Sleep(3 * time.Second)
 			fmt.Println("Keyboard interrupted. Exit Program")
 			fmt.Println("total produced messages: ", totalMsg)
-			fmt.Println("average burst rate is: ", totalMsg/totalBurst)
+			fmt.Println("average burst rate is: ", int(totalMsg)/totalBurst)
 			fmt.Println("average rest duration is: ", totalRestDur/totalBurst)
 			fmt.Println("average send duration is: ", totalSendDur/totalBurst)
 			os.Exit(1)
@@ -193,7 +192,7 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 			Value: sarama.StringEncoder(msg),
 		}
 		_, _, err := (*p).SendMessage(message)
-		totalMsg += 1
+		atomic.AddInt64(&totalMsg, 1)
 		if err != nil {
 			fmt.Println(err.Error())
 			break
@@ -215,9 +214,9 @@ func generateRandomNum(span int, targetRate int) int {
 
 func loopPrint() {
 	for {
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 		fmt.Println("total Msg is: ", totalMsg)
-		fmt.Println("average burst rate is: ", totalMsg/totalBurst)
+		fmt.Println("average burst rate is: ", int(totalMsg)/totalBurst)
 		fmt.Println("average rest duration is: ", totalRestDur/totalBurst)
 		fmt.Println("average send duration is: ", totalSendDur/totalBurst)
 	}

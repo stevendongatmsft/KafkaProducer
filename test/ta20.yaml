@@ -1,0 +1,37 @@
+apiVersion: sources.knative.dev/v1beta1
+kind: KafkaSource
+metadata:
+  name: ta20
+  annotations:
+    autoscaling.knative.dev/class: keda.autoscaling.knative.dev
+    autoscaling.knative.dev/minScale: "1"
+    autoscaling.knative.dev/maxScale: "4"
+    keda.autoscaling.knative.dev/pollingInterval: "1"
+    keda.autoscaling.knative.dev/cooldownPeriod: "10"
+    keda.autoscaling.knative.dev/kafkaLagThreshold: "10"
+spec:
+  consumerGroup: stevendongta20
+  consumers: 1
+  bootstrapServers:
+  - broker-4-7z8mjljpht52f0z8.kafka.svc07.us-south.eventstreams.cloud.ibm.com:9093
+  topics:
+  - ta20
+  net:
+    sasl:
+      enable: true
+      user:
+        secretKeyRef:
+          name: stan
+          key: username
+      password:
+        secretKeyRef:
+          name: stan
+          key: password
+    tls:
+      enable: true
+  sink:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: event-display-5
+

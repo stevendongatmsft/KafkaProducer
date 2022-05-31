@@ -1,0 +1,48 @@
+apiVersion: sources.knative.dev/v1beta1
+kind: KafkaSource
+metadata:
+  name: temp100
+  # annotations:
+  #   autoscaling.knative.dev/class: keda.autoscaling.knative.dev
+  #   autoscaling.knative.dev/minScale: "1"
+  #   autoscaling.knative.dev/maxScale: "20"
+  #   keda.autoscaling.knative.dev/pollingInterval: "1"
+  #   keda.autoscaling.knative.dev/cooldownPeriod: "10"
+  #   keda.autoscaling.knative.dev/kafkaLagThreshold: "10"
+spec:
+  consumerGroup: stevendongtemp100
+  consumers: 1
+  bootstrapServers:
+  - broker-1-6h9cxrv6h456kwnb.kafka.svc10.us-south.eventstreams.cloud.ibm.com:9093
+  topics:
+  - p100
+  net:
+    sasl:
+      enable: true
+      user:
+        secretKeyRef:
+          name: tempo
+          key: username
+      password:
+        secretKeyRef:
+          name: tempo
+          key: password
+    tls:
+      enable: true
+      # cert:
+      #   secretKeyRef:
+      #     key: tls.crt
+      #     name: kafka-secret
+      # key:
+      #   secretKeyRef:
+      #     key: tls.key
+      #     name: kafka-secret
+      # caCert:
+      #   secretKeyRef:
+      #     key: ca-cert.pem
+      #     name: cacert
+  sink:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: ed
