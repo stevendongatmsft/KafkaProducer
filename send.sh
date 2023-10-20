@@ -4,7 +4,7 @@ set +x
 set -e
 
 send() {
-    TOPIC=p100 EVENTCT=1 BROKERS="broker-1-6h9cxrv6h456kwnb.kafka.svc10.us-south.eventstreams.cloud.ibm.com:9093" PASSWORD="" go run kafka.go
+    TOPIC=my-topic EVENTCT=3 BROKERS="my-cluster-kafka-bootstrap:9092" PASSWORD="" go run kafka.go
 }
 
 callingfunc=$1
