@@ -19,15 +19,15 @@ var totalMsg int64
 var totalBurst int
 var totalSendDur int
 var totalRestDur int
-var topic = getenv("TOPIC", "pa20")
-var brokers = getenv("BROKERS", "kafka-1.mh-lbnyvywmvwwvpcmssqgl-4c201a12d7add7c99d2b22e361c6f175-0000.us-south.containers.appdomain.cloud:9093")
-var username = getenv("USERNAME", "token")
+var topic = getenv("TOPIC", "my-topic")
+var brokers = getenv("BROKERS", "my-cluster-kafka-bootstrap:9092")
+var username = getenv("USERNAME", "")
 var password = getenv("PASSWORD", "")
 var consumergroup = getenv("CONSUMERGROUP", "kafkasourcetestproducer")
-var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "2"), 10, 64)
-var rate, _ = strconv.ParseInt(getenv("RATE", "3000"), 10, 64)
-var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "1"), 10, 64)
-var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "30"), 10, 64)
+var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "10"), 10, 64)
+var rate, _ = strconv.ParseInt(getenv("RATE", "300"), 10, 64)
+var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "3"), 10, 64)
+var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "20"), 10, 64)
 var restdurationdeviation, _ = strconv.ParseInt(getenv("RESTDURATIONDEVIATION", "0"), 10, 64)
 var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "0"), 10, 64)
 var msg = "sample message 1"
@@ -40,7 +40,7 @@ var stats struct {
 func async() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGKILL)
-	config, err := kafkaConfig()
+	config, err := inClusterKafkaConfig()
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -74,12 +74,11 @@ producerLoop:
 			stats.Mu.Unlock()
 			tot, _ := strconv.Atoi(os.Getenv("EVENTCT"))
 			if int(ii) == tot {
-				time.Sleep(5 * time.Second)
+				time.Sleep(20 * time.Second)
 				stats.Mu.Lock()
 				fmt.Println("total messages produced is: ", stats.i)
 				fmt.Println("total errored is: ", stats.j)
 				stats.Mu.Unlock()
-				break producerLoop
 			}
 		case err := <-producer.Errors():
 			stats.Mu.Lock()
@@ -102,7 +101,7 @@ producerLoop:
 }
 
 func main() {
-	useAsync := true
+	useAsync := false
 	if useAsync {
 		async()
 	} else {
@@ -119,7 +118,7 @@ func main() {
 			os.Exit(1)
 		}()
 		go loopPrint()
-		config, err := kafkaConfig()
+		config, err := inClusterKafkaConfig()
 		if err != nil {
 			fmt.Println(err.Error())
 		}
@@ -223,8 +222,8 @@ func loopPrint() {
 }
 
 func kafkaConfig() (kafkaConfig *sarama.Config, err error) {
-	apiKey := password
-	user := username
+	// apiKey := password
+	// user := username
 	kafkaVersion := "2.6.0"
 
 	kafkaConfig = sarama.NewConfig()
@@ -248,8 +247,8 @@ func kafkaConfig() (kafkaConfig *sarama.Config, err error) {
 		MaxVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 	}
-	kafkaConfig.Net.SASL.User = user
-	kafkaConfig.Net.SASL.Password = apiKey
+	// kafkaConfig.Net.SASL.User = user
+	// kafkaConfig.Net.SASL.Password = apiKey
 
 	return kafkaConfig, nil
 }
@@ -257,10 +256,10 @@ func kafkaConfig() (kafkaConfig *sarama.Config, err error) {
 func inClusterKafkaConfig() (kafkaConfig *sarama.Config, err error) {
 	kafkaConfig = sarama.NewConfig()
 
-	kafkaConfig.ClientID = "knative-e2e"
+	kafkaConfig.ClientID = "kafka-on-kata-cc-mariner"
 
-	kafkaConfig.Producer.Partitioner = sarama.NewManualPartitioner
-	kafkaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	//kafkaConfig.Producer.Partitioner = sarama.NewManualPartitioner
+	kafkaConfig.Producer.RequiredAcks = sarama.WaitForLocal
 	kafkaConfig.Producer.Return.Successes = true
 
 	return kafkaConfig, nil
