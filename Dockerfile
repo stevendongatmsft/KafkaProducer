@@ -51,6 +51,8 @@ RUN apk add --no-cache ca-certificates
 
 # Copy the binary to the production image from the builder stage.
 COPY --from=builder /app/kafka /kafka
+# Copy the public key to the production image from the builder stage.
+COPY path_to_public_key.pem /path_to_public_key.pem
 
 # Run the web service on container startup.
 CMD ["/kafka"]
