@@ -13,6 +13,13 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
+	crand "crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 )
 
 var totalMsg int64
@@ -64,7 +71,15 @@ producerLoop:
 	for {
 
 		value := fmt.Sprintf("Message-%d", i)
-		message := sarama.ProducerMessage{Topic: topic, Value: sarama.StringEncoder(value)}
+
+		// Encrypt the message here using the public key. Replace 'path_to_public_key.pem' with the actual path to your public key.
+		encryptedValue, err := encryptMessage(value, "path_to_public_key.pem")
+		if err != nil {
+			fmt.Println("Error encrypting message:", err)
+			continue
+		}
+
+		message := sarama.ProducerMessage{Topic: topic, Value: sarama.StringEncoder(encryptedValue)}
 
 		select {
 		case producer.Input() <- &message:
@@ -201,6 +216,30 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 		count += 1
 
 	}
+}
+
+func encryptMessage(plaintext string, publicKeyPath string) (string, error) {
+	pubpem, err := os.ReadFile(publicKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("Failed to read public key file %v", publicKeyPath)
+	}
+	block, _ := pem.Decode([]byte(pubpem))
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("Invalid public key: %v", err)
+	}
+
+	var ciphertext []byte
+	if pubkey, ok := key.(*rsa.PublicKey); ok {
+		ciphertext, err = rsa.EncryptOAEP(sha256.New(), crand.Reader, pubkey, []byte(plaintext), nil)
+		if err != nil {
+			return "", fmt.Errorf("Failed to encrypt with the public key: %v", err)
+		}
+	} else {
+		return "", fmt.Errorf("Invalid public RSA key")
+	}
+
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
 func generateRandomNum(span int, targetRate int) int {
