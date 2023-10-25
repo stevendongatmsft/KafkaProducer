@@ -31,13 +31,12 @@ var brokers = getenv("BROKERS", "my-cluster-kafka-bootstrap:9092")
 var username = getenv("USERNAME", "")
 var password = getenv("PASSWORD", "")
 var consumergroup = getenv("CONSUMERGROUP", "kafkasourcetestproducer")
-var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "10"), 10, 64)
-var rate, _ = strconv.ParseInt(getenv("RATE", "300"), 10, 64)
-var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "3"), 10, 64)
-var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "20"), 10, 64)
-var restdurationdeviation, _ = strconv.ParseInt(getenv("RESTDURATIONDEVIATION", "0"), 10, 64)
-var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "0"), 10, 64)
-var msg = "sample message 1"
+var ratedeviation, _ = strconv.ParseInt(getenv("RATEDEVIATION", "2"), 10, 64)
+var rate, _ = strconv.ParseInt(getenv("RATE", "10"), 10, 64)
+var senddurationdeviation, _ = strconv.ParseInt(getenv("SENDDURATIONDEVIATION", "2"), 10, 64)
+var sendduration, _ = strconv.ParseInt(getenv("SENDDURATION", "5"), 10, 64)
+var restdurationdeviation, _ = strconv.ParseInt(getenv("RESTDURATIONDEVIATION", "2"), 10, 64)
+var restduration, _ = strconv.ParseInt(getenv("RESTDURATION", "10"), 10, 64)
 var stats struct {
 	i  int
 	j  int
@@ -69,8 +68,8 @@ func async() {
 
 producerLoop:
 	for {
-
-		value := fmt.Sprintf("Message-%d", i)
+		i += 1
+		value := fmt.Sprintf("Msg %d: Azure confidential computing. Increase data privacy by protecting data in use", i)
 
 		// Encrypt the message here using the public key. Replace 'path_to_public_key.pem' with the actual path to your public key.
 		encryptedValue, err := encryptMessage(value, "path_to_public_key.pem")
@@ -201,17 +200,28 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 		if count >= rate {
 			continue
 		}
+
+		count += 1
+		value := fmt.Sprintf("Msg %d: Azure confidential computing. Increase data privacy by protecting data in use", count)
+
+		// Encrypt the message here using the public key. Replace 'path_to_public_key.pem' with the actual path to your public key.
+		encryptedValue, err := encryptMessage(value, "path_to_public_key.pem")
+		if err != nil {
+			fmt.Println("Error encrypting message:", err)
+			continue
+		}
+
 		message := &sarama.ProducerMessage{
 			Topic: topic,
-			Value: sarama.StringEncoder(msg),
+			Value: sarama.StringEncoder(encryptedValue),
 		}
-		_, _, err := (*p).SendMessage(message)
+		_, _, err = (*p).SendMessage(message)
 		atomic.AddInt64(&totalMsg, 1)
 		if err != nil {
 			fmt.Println(err.Error())
 			break
 		}
-		//fmt.Printf("Produced message to partition %d offset %d\n", partition, offset)
+		fmt.Printf("Produced message to partition")
 		count += 1
 
 	}
@@ -220,22 +230,22 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 func encryptMessage(plaintext string, publicKeyPath string) (string, error) {
 	pubpem, err := os.ReadFile(publicKeyPath)
 	if err != nil {
-		return "", fmt.Errorf("Failed to read public key file %v", publicKeyPath)
+		return "", fmt.Errorf("failed to read public key file %v", publicKeyPath)
 	}
 	block, _ := pem.Decode([]byte(pubpem))
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return "", fmt.Errorf("Invalid public key: %v", err)
+		return "", fmt.Errorf("invalid public key: %v", err)
 	}
 
 	var ciphertext []byte
 	if pubkey, ok := key.(*rsa.PublicKey); ok {
 		ciphertext, err = rsa.EncryptOAEP(sha256.New(), crand.Reader, pubkey, []byte(plaintext), nil)
 		if err != nil {
-			return "", fmt.Errorf("Failed to encrypt with the public key: %v", err)
+			return "", fmt.Errorf("failed to encrypt with the public key: %v", err)
 		}
 	} else {
-		return "", fmt.Errorf("Invalid public RSA key")
+		return "", fmt.Errorf("invalid public RSA key")
 	}
 
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
