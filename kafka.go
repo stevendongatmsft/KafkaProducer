@@ -228,9 +228,16 @@ func produceMessage(targetRate int, rateSpan int, targetSendDuration int, target
 }
 
 func encryptMessage(plaintext string, publicKeyPath string) (string, error) {
-	pubpem, err := os.ReadFile(publicKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read public key file %v", publicKeyPath)
+	var pubpem []byte
+	var err error
+	if pkey := os.Getenv("PUBKEY"); len(pkey) > 0 {
+		pubpem = []byte(pkey)
+	}
+	if len(pubpem) == 0 {
+		pubpem, err = os.ReadFile(publicKeyPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read public key file %v", publicKeyPath)
+		}
 	}
 	block, _ := pem.Decode([]byte(pubpem))
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
